@@ -11,4 +11,4 @@ Main features:
 - ...
 
 Author: Dmitry A. Bogomolov (aka Exo)
-mailto: Dmitry.Bogomolov@gmail.com
+e-mail/GTalk: Dmitry.Bogomolov@gmail.com
