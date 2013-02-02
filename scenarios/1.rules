@@ -1,0 +1,20 @@
+#!/bin/zsh
+
+function change_route {
+	echo "Scenario 1"
+	verb "Start reroute..."
+	verb "Delete default routes"
+	#clean default routes in tables
+	for i in 1 2 3; do
+		ip route del default table mts_udp 2>/dev/null
+		ip route del default 2>/dev/null
+	done
+	verb "Add default routes"
+	#for udp only MTS
+	ip route add default via $ISP_GW[1] dev $ISP_IFACE[1] table mts_udp
+	#default route to MTS channel
+	ip route add default via $ISP_GW[1] dev $ISP_IFACE[1]
+
+	ip route flush cache
+	verb "End reroute..."
+}

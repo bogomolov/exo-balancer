@@ -1,0 +1,61 @@
+#!/bin/zsh
+
+function after {
+	verb "Start after rules..."
+	iptables -F -t mangle
+
+	verb "Rules for UDP..."
+	#Правила для маршрутизации до VoIP-провайдеров через канал МТС
+	for addr in `echo $DNS_DESTS $SIP_DESTS`; do
+	  ip rule add to $addr table mts_udp
+	done
+
+	verb "Mark Connections"
+	for ((i = 1; i < 10; i += 1)); do 
+	  if [[ ! -z $ISP_NAME[$i] ]]; then
+            ip route flush table $ISP_TABNAME[$i]
+            ip route add default dev $ISP_IFACE[$i] scope link table $ISP_TABNAME[$i]
+            ip rule del fwmark $ISP_TABLE[$i] table $ISP_TABNAME[$i]
+            iptables -t mangle -A INPUT -i $ISP_IFACE[$i] -j CONNMARK --set-mark $ISP_TABLE[$i]
+	  fi
+	done
+        iptables -t mangle -A OUTPUT -j CONNMARK --restore-mark
+
+	verb "Mark SIP as UDP..."
+	# Пометка исходящих пакетов на порты, связанные с SIP, как mts_udp
+	for addr in `echo $SIP_DESTS`; do
+	  #mark output SIP packets for route in mts_udp table
+	  iptables -t mangle -A OUTPUT -p udp -m multiport --ports ${SIP_UDP_PORTS} -d ${addr} -j MARK --set-mark 1
+	  iptables -t mangle -A OUTPUT -p tcp -m multiport --ports ${SIP_TCP_PORTS} -d ${addr} -j MARK --set-mark 1
+
+	  #mark forward SIP packets for route in mts_udp table
+	  iptables -t mangle -A FORWARD -p udp -m multiport --ports ${SIP_UDP_PORTS} -d ${addr} -j MARK --set-mark 1
+	  iptables -t mangle -A FORWARD -p tcp -m multiport --ports ${SIP_TCP_PORTS} -d ${addr} -j MARK --set-mark 1
+	done
+	verb "Mark DNS as UDP..."
+	# Пометка исходящих пакетов на порты, связанные с DNS, как mts_udp
+	for addr in `echo $DNS_DESTS`; do
+	  for tab in OUTPUT FORWARD; do
+	    #mark output DNS packets for route in mts_udp table
+	    iptables -t mangle -A ${tab} -p udp -m multiport --ports ${DNS_UDP_PORTS} -d ${addr} -j MARK --set-mark 1
+	    iptables -t mangle -A ${tab} -p tcp -m multiport --ports ${DNS_TCP_PORTS} -d ${addr} -j MARK --set-mark 1
+	  done
+	done
+	verb "Priority..."
+	# Установка максимального приоритета для пакетов, связанных с SIP
+	for addr in `echo $SIP_DESTS`; do
+	  for tab in OUTPUT PREROUTING; do
+	    iptables -t mangle -A OUTPUT -p udp -m multiport --ports ${SIP_UDP_PORTS} -d ${addr} -j TOS --set-tos Minimize-Delay
+	    iptables -t mangle -A OUTPUT -p tcp -m multiport --ports ${SIP_TCP_PORTS} -d ${addr} -j TOS --set-tos Minimize-Delay
+	  done
+	done
+
+	verb "End after rules..."
+	restart_services
+}
+
+function restart_services {
+	verb "Restart services"
+	service bind9 restart
+	asterisk -rx "sip reload"
+}

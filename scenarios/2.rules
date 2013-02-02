@@ -1,0 +1,18 @@
+#!/bin/zsh
+
+function change_route {
+	echo "Scenario 2"
+        echo "Cleaning routes..."
+	#clean default routes in tables
+        for i in 1 2 3; do
+                ip route del default table mts_udp
+                ip route del default
+        done
+	echo "Define new default routes..."
+        #for udp only NetByNet (maybe UDP will work)
+        ip route add default dev $ISP_IFACE[2] via $ISP_GW[2] table mts_udp
+        #default route to NetByNet
+        ip route add default dev $ISP_IFACE[2] via $ISP_GW[2]
+	echo "Flushing route cache..."
+	ip route flush cache
+}

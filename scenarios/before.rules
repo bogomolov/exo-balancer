@@ -1,0 +1,10 @@
+#!/bin/zsh
+
+function before {
+	verb "Start before rules..."
+	ip route flush table mts_udp
+
+	ip rule del fwmark 1 table mts_udp
+	ip rule add fwmark 1 table mts_udp
+	verb "End before rules..."
+}
